@@ -4,30 +4,33 @@ on:
   push:
   workflow_dispatch:
   schedule:
-    - cron: '6 12 * * *'
+    - cron: '* */3 * * *'
 
 jobs:
   scheduled:
     runs-on: ubuntu-latest
     steps:
-    - name: Check out this repo
-      uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
-    - name: Fetch latest data
-      run: |-
-        curl https://relocate-with-us.github.io/db.json | jq . > jobList.json
-    - name: Parse jobList.json into table
-      id: parse-json
-      run: |
-        echo "| Company | Job Title | Location | Link |" > README.md
-        echo "| --- | --- | --- | --- |" >> README.md
-        jq -r '.[] | "| " + .company + " | " + .position + " | " + .location + " | " + "[Apply](" + .description + ")" + " |"' jobList.json >> README.md
-    - name: Commit and push if it changed
-      run: |
-        git config user.name "Automated"
-        git config user.email "actions@users.noreply.github.com"
-        git add README.md
-        timestamp=$(date -u)
-        git commit -m "Latest jobs: ${timestamp}" || exit 0
-        git push
+      - name: Check out this repo
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Fetch latest data
+        run: |-
+          curl https://relocate-with-us.github.io/db.json | jq . > jobList.json
+      - name: Filter jobs with 'data' in the title
+        run: |
+          jq '[.[] | select(.position | test("data"; "i"))]' jobList.json > filteredJobList.json
+      - name: Parse filteredJobList.json into table
+        id: parse-json
+        run: |
+          echo "| Company | Job Title | Location | Link |" > README.md
+          echo "| --- | --- | --- | --- |" >> README.md
+          jq -r '.[] | "| " + .company + " | " + .position + " | " + .location + " | " + "[Apply](" + .applyUrl + ")" + " |"' filteredJobList.json >> README.md
+      - name: Commit and push if it changed
+        run: |
+          git config user.name "Automated"
+          git config user.email "actions@users.noreply.github.com"
+          git add README.md
+          timestamp=$(date -u)
+          git commit -m "Latest jobs: ${timestamp}" || exit 0
+          git push
